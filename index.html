@@ -39,24 +39,24 @@
 </head>
 <body>
   <input type="file" id="pdfInput" accept="application/pdf" />
-  <label>
-    سرعت (کلمه در ثانیه): <input type="number" id="speedInput" value="5" min="1" />
+  <label> سرعت (کلمه/ثانیه): 
+    <input type="number" id="speedInput" value="5" min="1" />
   </label>
-  <label>
-    تعداد کلمات همزمان: <input type="number" id="chunkInput" value="1" min="1" />
+  <label> تعداد کلمات همزمان: 
+    <input type="number" id="chunkInput" value="1" min="1" />
   </label>
 
   <div id="preview" style="
-  margin: 20px 0;
-  padding: 10px;
-  border: 1px solid #ccc;
-  max-height: 120px;
-  overflow-y: auto;
-  overflow-x: auto;
-  font-size: 14px;
-  line-height: 1.6;
-  white-space: wrap;
-"></div>
+    margin: 20px 0;
+    padding: 10px;
+    border: 1px solid #ccc;
+    max-height: 150px;
+    overflow-y: auto;
+    font-size: 14px;
+    line-height: 1.6;
+    white-space: wrap;
+    direction: rtl;
+  "></div>
 
   <div style="display: flex; gap: 10px; margin: 10px 0;">
     <button onclick="goBack()">← 5 کلمه قبل</button>
@@ -64,7 +64,7 @@
     <button onclick="goForward()">5 کلمه بعد →</button>
   </div>
 
-  <div id="wordDisplay" style="font-size: 3rem; font-weight: bold; text-align: center; margin-top: 20px;"></div>
+  <div id="wordDisplay" style="font-size: 2rem; font-weight: bold; text-align: center; margin-top: 20px;"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
   <script>
@@ -75,6 +75,7 @@
 
     const wordDisplay = document.getElementById("wordDisplay")
     const playBtn = document.getElementById("playBtn")
+    const previewDiv = document.getElementById("preview")
 
     document.getElementById("pdfInput").addEventListener("change", async (e) => {
       const file = e.target.files[0]
@@ -84,7 +85,6 @@
       const pdf = await pdfjsLib.getDocument({ data: buffer }).promise
 
       let fullText = ""
-
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i)
         const content = await page.getTextContent()
@@ -99,36 +99,54 @@
       }
 
       words = fullText.split(/\s+/).filter(Boolean)
-      showPreview()
+      renderPreview()
     })
 
-    function showPreview() {
-      const previewDiv = document.getElementById("preview")
+    function renderPreview() {
       previewDiv.innerHTML = ""
       words.forEach((word, i) => {
         const span = document.createElement("span")
         span.textContent = word + " "
         span.style.cursor = "pointer"
-        if (i === currentIndex) span.style.color = "blue"
+        span.dataset.index = i
         span.onclick = () => {
           currentIndex = i
-          showPreview()
+          renderPreview()
+        }
+        if (i >= currentIndex && i < currentIndex + parseInt(document.getElementById("chunkInput").value)) {
+          span.style.color = "white"
+          span.style.background = "red"
+          span.style.padding = "2px 4px"
+          span.style.borderRadius = "4px"
+          span.id = "current-word"
         }
         previewDiv.appendChild(span)
       })
+      autoScrollToCurrent()
+    }
+
+    function autoScrollToCurrent() {
+      const currentSpan = document.getElementById("current-word")
+      if (currentSpan) {
+        const offsetTop = currentSpan.offsetTop
+        previewDiv.scrollTo({
+          top: offsetTop - 150,
+          behavior: "smooth"
+        })
+      }
     }
 
     function displayWords() {
       const chunkSize = parseInt(document.getElementById("chunkInput").value)
       const chunk = words.slice(currentIndex, currentIndex + chunkSize).join(" ")
       wordDisplay.textContent = chunk
+      renderPreview()
       currentIndex += chunkSize
-      showPreview()
       if (currentIndex >= words.length) togglePlay(false)
     }
 
-    function togglePlay(forceState = null) {
-      isPlaying = forceState !== null ? forceState : !isPlaying
+    function togglePlay(force = null) {
+      isPlaying = force !== null ? force : !isPlaying
       playBtn.textContent = isPlaying ? "⏸ توقف" : "▶️ پخش"
       clearInterval(interval)
       if (isPlaying) {
@@ -148,5 +166,6 @@
     }
   </script>
 </body>
+
 
 </html>

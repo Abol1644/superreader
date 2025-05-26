@@ -1,0 +1,16 @@
+@font-face {
+    font-family: iransans;
+    src: url(IRANSansX-Regular.woff2);
+}
+
+@font-face {
+    font-family: iransans-black;
+    src: url(IRANSansX-Black.woff2);
+}
+
+* {
+    font-family: iransans;
+    font-weight: normal;
+    font-style: normal;
+    color: #333333;
+}

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+  <meta charset="UTF-8">
+  <title>PDF Word Player</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      background: #f7f7f7;
+    }
+    #word {
+      font-size: 3rem;
+      margin: 40px 0;
+      min-height: 3.5rem;
+    }
+    input, button, select {
+      margin: 5px;
+      padding: 8px 12px;
+      font-size: 1rem;
+    }
+    #controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h2>چشمک‌زن کلمات PDF</h2>
+  <input type="file" id="pdfInput" accept=".pdf">
+  <div id="controls">
+    <button id="prev">⏮️ قبلی</button>
+    <button id="play">▶️ پخش</button>
+    <button id="pause">⏸️ توقف</button>
+    <button id="next">⏭️ بعدی</button>
+    <input type="number" id="speed" value="5" min="1" style="width: 80px;"> <label for="speed">کلمه/ثانیه</label>
+  </div>
+  <div id="word">منتظر فایل PDF...</div>
+  <div id="status"></div>
+
+  <script>
+    const wordDiv = document.getElementById('word');
+    const input = document.getElementById('pdfInput');
+    const playBtn = document.getElementById('play');
+    const pauseBtn = document.getElementById('pause');
+    const nextBtn = document.getElementById('next');
+    const prevBtn = document.getElementById('prev');
+    const speedInput = document.getElementById('speed');
+    const statusDiv = document.getElementById('status');
+
+    let words = [], index = 0, interval = null;
+
+    function updateWord() {
+      wordDiv.textContent = words[index] || 'تمام شد!';
+    }
+
+    function play() {
+      clearInterval(interval);
+      const speed = parseFloat(speedInput.value);
+      if (isNaN(speed) || speed <= 0) return;
+      interval = setInterval(() => {
+        if (index < words.length - 1) {
+          index++;
+          updateWord();
+        } else {
+          pause();
+        }
+      }, 1000 / speed);
+      statusDiv.textContent = 'در حال پخش...';
+    }
+
+    function pause() {
+      clearInterval(interval);
+      statusDiv.textContent = 'متوقف شده';
+    }
+
+    playBtn.onclick = play;
+    pauseBtn.onclick = pause;
+
+    nextBtn.onclick = () => {
+      if (index < words.length - 1) index++;
+      updateWord();
+    };
+
+    prevBtn.onclick = () => {
+      if (index > 0) index--;
+      updateWord();
+    };
+
+    input.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+      let allText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        const strings = content.items.map(item => item.str);
+        allText += strings.join(' ') + ' ';
+      }
+
+      words = allText.trim().split(/\s+/);
+      index = 0;
+      updateWord();
+      statusDiv.textContent = 'فایل بارگذاری شد. آماده پخش.';
+    });
+  </script>
+</body>
+</html>

@@ -8,18 +8,16 @@
   <style>
     body {
       font-family: sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 20px;
       background: #f7f7f7;
+      padding: 20px;
+      text-align: center;
     }
     #word {
       font-size: 3rem;
-      margin: 40px 0;
+      margin: 30px 0;
       min-height: 3.5rem;
     }
-    input, button, select {
+    input, button, select, textarea {
       margin: 5px;
       padding: 8px 12px;
       font-size: 1rem;
@@ -31,90 +29,124 @@
       justify-content: center;
       margin-bottom: 20px;
     }
+    textarea {
+      width: 100%;
+      max-width: 500px;
+      height: 150px;
+      direction: rtl;
+    }
   </style>
 </head>
 <body>
-  <h2>چشمک‌زن کلمات PDF</h2>
-  <input type="file" id="pdfInput" accept=".pdf">
-  <div id="controls">
-    <button id="prev">⏮️ قبلی</button>
-    <button id="play">▶️ پخش</button>
-    <button id="pause">⏸️ توقف</button>
-    <button id="next">⏭️ بعدی</button>
-    <input type="number" id="speed" value="5" min="1" style="width: 80px;"> <label for="speed">کلمه/ثانیه</label>
+  <input type="file" id="pdfInput" accept="application/pdf" />
+  <label>
+    سرعت (کلمه در ثانیه): <input type="number" id="speedInput" value="5" min="1" />
+  </label>
+  <label>
+    تعداد کلمات همزمان: <input type="number" id="chunkInput" value="1" min="1" />
+  </label>
+
+  <div id="preview" style="
+  margin: 20px 0;
+  padding: 10px;
+  border: 1px solid #ccc;
+  max-height: 120px;
+  overflow-y: auto;
+  overflow-x: auto;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: wrap;
+"></div>
+
+  <div style="display: flex; gap: 10px; margin: 10px 0;">
+    <button onclick="goBack()">← 5 کلمه قبل</button>
+    <button onclick="togglePlay()" id="playBtn">▶️ پخش</button>
+    <button onclick="goForward()">5 کلمه بعد →</button>
   </div>
-  <div id="word">منتظر فایل PDF...</div>
-  <div id="status"></div>
 
+  <div id="wordDisplay" style="font-size: 3rem; font-weight: bold; text-align: center; margin-top: 20px;"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
   <script>
-    const wordDiv = document.getElementById('word');
-    const input = document.getElementById('pdfInput');
-    const playBtn = document.getElementById('play');
-    const pauseBtn = document.getElementById('pause');
-    const nextBtn = document.getElementById('next');
-    const prevBtn = document.getElementById('prev');
-    const speedInput = document.getElementById('speed');
-    const statusDiv = document.getElementById('status');
+    let words = []
+    let currentIndex = 0
+    let interval = null
+    let isPlaying = false
 
-    let words = [], index = 0, interval = null;
+    const wordDisplay = document.getElementById("wordDisplay")
+    const playBtn = document.getElementById("playBtn")
 
-    function updateWord() {
-      wordDiv.textContent = words[index] || 'تمام شد!';
-    }
+    document.getElementById("pdfInput").addEventListener("change", async (e) => {
+      const file = e.target.files[0]
+      if (!file) return
 
-    function play() {
-      clearInterval(interval);
-      const speed = parseFloat(speedInput.value);
-      if (isNaN(speed) || speed <= 0) return;
-      interval = setInterval(() => {
-        if (index < words.length - 1) {
-          index++;
-          updateWord();
-        } else {
-          pause();
-        }
-      }, 1000 / speed);
-      statusDiv.textContent = 'در حال پخش...';
-    }
+      const buffer = await file.arrayBuffer()
+      const pdf = await pdfjsLib.getDocument({ data: buffer }).promise
 
-    function pause() {
-      clearInterval(interval);
-      statusDiv.textContent = 'متوقف شده';
-    }
+      let fullText = ""
 
-    playBtn.onclick = play;
-    pauseBtn.onclick = pause;
-
-    nextBtn.onclick = () => {
-      if (index < words.length - 1) index++;
-      updateWord();
-    };
-
-    prevBtn.onclick = () => {
-      if (index > 0) index--;
-      updateWord();
-    };
-
-    input.addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-
-      let allText = '';
       for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        const strings = content.items.map(item => item.str);
-        allText += strings.join(' ') + ' ';
+        const page = await pdf.getPage(i)
+        const content = await page.getTextContent()
+        const pageText = content.items
+          .map((item) => item.str)
+          .filter((line) => {
+            const lower = line.trim().toLowerCase()
+            return !lower.includes("page") && !lower.includes("header") && !lower.includes("footer")
+          })
+          .join(" ")
+        fullText += pageText + " "
       }
 
-      words = allText.trim().split(/\s+/);
-      index = 0;
-      updateWord();
-      statusDiv.textContent = 'فایل بارگذاری شد. آماده پخش.';
-    });
+      words = fullText.split(/\s+/).filter(Boolean)
+      showPreview()
+    })
+
+    function showPreview() {
+      const previewDiv = document.getElementById("preview")
+      previewDiv.innerHTML = ""
+      words.forEach((word, i) => {
+        const span = document.createElement("span")
+        span.textContent = word + " "
+        span.style.cursor = "pointer"
+        if (i === currentIndex) span.style.color = "blue"
+        span.onclick = () => {
+          currentIndex = i
+          showPreview()
+        }
+        previewDiv.appendChild(span)
+      })
+    }
+
+    function displayWords() {
+      const chunkSize = parseInt(document.getElementById("chunkInput").value)
+      const chunk = words.slice(currentIndex, currentIndex + chunkSize).join(" ")
+      wordDisplay.textContent = chunk
+      currentIndex += chunkSize
+      showPreview()
+      if (currentIndex >= words.length) togglePlay(false)
+    }
+
+    function togglePlay(forceState = null) {
+      isPlaying = forceState !== null ? forceState : !isPlaying
+      playBtn.textContent = isPlaying ? "⏸ توقف" : "▶️ پخش"
+      clearInterval(interval)
+      if (isPlaying) {
+        const speed = parseInt(document.getElementById("speedInput").value)
+        interval = setInterval(displayWords, 1000 / speed)
+      }
+    }
+
+    function goBack() {
+      currentIndex = Math.max(0, currentIndex - 5)
+      displayWords()
+    }
+
+    function goForward() {
+      currentIndex = Math.min(words.length - 1, currentIndex + 5)
+      displayWords()
+    }
   </script>
 </body>
+
 </html>
